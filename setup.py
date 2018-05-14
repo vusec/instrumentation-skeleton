@@ -8,7 +8,6 @@ sys.path.insert(0, os.path.join(curdir, 'infra'))
 import infra
 from infra.packages import LLVM
 from infra.util import run, qjoin
-from infra.instances.helpers.llvm_lto import add_stats_pass, add_lto_args
 
 
 class LibcallCount(infra.Instance):
@@ -18,23 +17,21 @@ class LibcallCount(infra.Instance):
         self.llvm = infra.packages.LLVM(version=llvm_version,
                                         compiler_rt=False,
                                         patches=['gold-plugins', 'statsfilter'])
-        self.llvm_passes = infra.packages.LLVMPasses(
+        self.passes = infra.packages.LLVMPasses(
                 self.llvm, os.path.join(curdir, 'llvm-passes'),
                 'skeleton', use_builtins=True)
         self.runtime = LibcallCounterRuntime()
 
     def dependencies(self):
         yield self.llvm
-        yield self.llvm_passes
+        yield self.passes
         yield self.runtime
 
     def configure(self, ctx):
         self.llvm.configure(ctx)
-        self.llvm_passes.configure(ctx)
+        self.passes.configure(ctx)
         self.runtime.configure(ctx)
-        #add_stats_pass(ctx, '-count-libcalls')
-        add_lto_args(ctx, '-count-libcalls')
-        add_lto_args(ctx, '-dump-ir')
+        self.llvm.add_plugin_flags(ctx, '-count-libcalls', '-dump-ir')
 
     def prepare_run(self, ctx):
         prevlibpath = os.getenv('LD_LIBRARY_PATH', '').split(':')
