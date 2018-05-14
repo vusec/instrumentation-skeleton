@@ -31,7 +31,7 @@ class LibcallCount(infra.Instance):
         self.llvm.configure(ctx)
         self.passes.configure(ctx)
         self.runtime.configure(ctx)
-        self.llvm.add_plugin_flags(ctx, '-count-libcalls', '-dump-ir')
+        LLVM.add_plugin_flags(ctx, '-count-libcalls', '-dump-ir')
 
     def prepare_run(self, ctx):
         prevlibpath = os.getenv('LD_LIBRARY_PATH', '').split(':')
