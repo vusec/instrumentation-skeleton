@@ -114,12 +114,8 @@ if __name__ == '__main__':
 
     setup.add_target(HelloWorld())
     setup.add_target(infra.targets.SPEC2006(
-        source='/home/taddeus/spec06',
-        source_type='installed',
+        source=os.path.join(curdir, 'spec2006.tar.gz'),
+        source_type='tarfile',
     ))
-    #setup.add_target(infra.targets.SPEC2006(
-    #    source=os.path.join(curdir, 'spec2006.tar.gz'),
-    #    source_type='tarfile',
-    #))
 
     setup.main()
