@@ -114,8 +114,8 @@ if __name__ == '__main__':
 
     setup.add_target(HelloWorld())
     setup.add_target(infra.targets.SPEC2006(
-        source=os.path.join(curdir, 'spec2006.tar.gz'),
-        source_type='tarfile',
+        source=os.path.join(curdir, 'spec2006.iso'),
+        source_type='isofile',
     ))
 
     setup.main()
