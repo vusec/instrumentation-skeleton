@@ -1,8 +1,13 @@
+#include <llvm/ADT/SmallVector.h>
+#include <llvm/ADT/Statistic.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/InstIterator.h>
+#include <llvm/IR/CallSite.h>
+
 #define DEBUG_TYPE "count-libcalls"
 
-#include "utils/Common.h"
-#include "utils/CustomFunctionPass.h"
-#include "include/noinstrument.h"
+#include "builtin/Utils/ModuleFunctionPass.h"
+#include "builtin/Utils/NoInstrument.h"
 
 using namespace llvm;
 
@@ -10,19 +15,26 @@ namespace {
 
 STATISTIC(NLibcalls, "Number of instrumented library calls");
 
-struct CountLibcalls : public CustomFunctionPass {
+struct CountLibcalls : public ModuleFunctionPass {
     static char ID;
-    CountLibcalls() : CustomFunctionPass(ID) {}
+    CountLibcalls() : ModuleFunctionPass(ID) {}
 
 private:
     Function *CountFunc;
 
     bool initializeModule(Module &M) override {
+        // For an LTO pass, the helper should exist
+        if ((CountFunc = M.getFunction(NOINSTRUMENT_PREFIX "count_libcall")))
+            return false;
+
+        // We also support compile-time instrumentation by inserting the
+        // function signature if it does not exist
         Type *VoidTy = Type::getVoidTy(M.getContext());
         Type *StringTy = Type::getIntNPtrTy(M.getContext(), 8);
         FunctionType *FnTy = FunctionType::get(VoidTy, {StringTy}, false);
-        CountFunc = cast<Function>(M.getOrInsertFunction(NOINSTRUMENT_PREFIX "count_libcall", FnTy));
-        return false;
+        CountFunc = Function::Create(FnTy, GlobalValue::ExternalLinkage,
+                                     NOINSTRUMENT_PREFIX "count_libcall", &M);
+        return true;
     }
 
     bool runOnFunction(Function &F) override {

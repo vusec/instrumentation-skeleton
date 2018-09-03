@@ -6,7 +6,7 @@ curdir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(curdir, 'infra'))
 
 import infra
-from infra.packages import LLVM
+from infra.packages import LLVM, LLVMPasses
 from infra.util import run, qjoin
 
 
@@ -14,12 +14,11 @@ class LibcallCount(infra.Instance):
     name = 'libcallcount'
 
     def __init__(self, llvm_version):
-        self.llvm = infra.packages.LLVM(version=llvm_version,
-                                        compiler_rt=False,
-                                        patches=['gold-plugins', 'statsfilter'])
-        self.passes = infra.packages.LLVMPasses(
-                self.llvm, os.path.join(curdir, 'llvm-passes'),
-                'skeleton', use_builtins=True)
+        self.llvm = LLVM(version=llvm_version, compiler_rt=False,
+                         patches=['gold-plugins', 'statsfilter'])
+        passdir = os.path.join(curdir, 'llvm-passes')
+        self.passes = LLVMPasses(self.llvm, passdir, 'skeleton',
+                                 use_builtins=True)
         self.runtime = LibcallCounterRuntime()
 
     def dependencies(self):
@@ -28,17 +27,21 @@ class LibcallCount(infra.Instance):
         yield self.runtime
 
     def configure(self, ctx):
+        # Set the build environment (CC, CFLAGS, etc.) for the target program
         self.llvm.configure(ctx)
         self.passes.configure(ctx)
         self.runtime.configure(ctx)
         LLVM.add_plugin_flags(ctx, '-count-libcalls', '-dump-ir')
 
     def prepare_run(self, ctx):
+        # Just before running the target, set LD_LIBRARY_PATH so that it can
+        # find the dynamic library
         prevlibpath = os.getenv('LD_LIBRARY_PATH', '').split(':')
         libpath = self.runtime.path(ctx)
         ctx.runenv.setdefault('LD_LIBRARY_PATH', prevlibpath).insert(0, libpath)
 
 
+# Custom package for our runtime library in the runtime/ directory
 class LibcallCounterRuntime(infra.Package):
     def ident(self):
         return 'libcallcount-runtime'
@@ -69,6 +72,7 @@ class LibcallCounterRuntime(infra.Package):
         ctx.ldflags += ['-L' + self.path(ctx), '-lcount']
 
 
+# Custom target for test program in hello-world/ directory
 class HelloWorld(infra.Target):
     name = 'hello-world'
 
@@ -102,15 +106,20 @@ class HelloWorld(infra.Target):
 if __name__ == '__main__':
     setup = infra.Setup(__file__)
 
-    # TODO: more recent LLVM
-    instance = LibcallCount('3.8.0')
-    setup.add_instance(infra.instances.ClangLTO(instance.llvm))
+    # Add clang, clang-lto and libcallcount instances
+    instance = LibcallCount('4.0.0')
+    setup.add_instance(infra.instances.Clang(instance.llvm))
+    setup.add_instance(infra.instances.Clang(instance.llvm, lto=True))
     setup.add_instance(instance)
 
     setup.add_target(HelloWorld())
     setup.add_target(infra.targets.SPEC2006(
-        source='git@bitbucket.org:vusec/spec-cpu2006-cd.git',
-        source_type='git',
+        source='/home/taddeus/spec06',
+        source_type='installed',
     ))
+    #setup.add_target(infra.targets.SPEC2006(
+    #    source=os.path.join(curdir, 'spec2006.tar.gz'),
+    #    source_type='tarfile',
+    #))
 
     setup.main()
