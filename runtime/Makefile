@@ -1,6 +1,6 @@
 # overwritten in setup.py
 OBJDIR         ?= obj
-LLVM_VERSION   ?= 3.8.0
+LLVM_VERSION   ?= 4.0.0
 
 PKG_CONFIG     := python3 ../setup.py pkg-config
 BUILTIN_CFLAGS := `$(PKG_CONFIG) llvm-passes-builtin-$(LLVM_VERSION) --runtime-cflags`

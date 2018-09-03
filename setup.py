@@ -10,25 +10,25 @@ from infra.packages import LLVM, LLVMPasses
 from infra.util import run, qjoin
 
 
+llvm = LLVM(version='4.0.0', compiler_rt=False, patches=['gold-plugins'])
+
+
 class LibcallCount(infra.Instance):
     name = 'libcallcount'
 
-    def __init__(self, llvm_version):
-        self.llvm = LLVM(version=llvm_version, compiler_rt=False,
-                         patches=['gold-plugins', 'statsfilter'])
+    def __init__(self):
         passdir = os.path.join(curdir, 'llvm-passes')
-        self.passes = LLVMPasses(self.llvm, passdir, 'skeleton',
-                                 use_builtins=True)
+        self.passes = LLVMPasses(llvm, passdir, 'skeleton', use_builtins=True)
         self.runtime = LibcallCounterRuntime()
 
     def dependencies(self):
-        yield self.llvm
+        yield llvm
         yield self.passes
         yield self.runtime
 
     def configure(self, ctx):
         # Set the build environment (CC, CFLAGS, etc.) for the target program
-        self.llvm.configure(ctx)
+        llvm.configure(ctx)
         self.passes.configure(ctx)
         self.runtime.configure(ctx)
         LLVM.add_plugin_flags(ctx, '-count-libcalls', '-dump-ir')
@@ -53,7 +53,8 @@ class LibcallCounterRuntime(infra.Package):
         os.chdir(os.path.join(ctx.paths.root, 'runtime'))
         run(ctx, [
             'make', '-j%d' % ctx.jobs,
-            'OBJDIR=' + self.path(ctx)
+            'OBJDIR=' + self.path(ctx),
+            'LLVM_VERSION=' + llvm.version
         ])
 
     def install(self, ctx):
@@ -107,10 +108,9 @@ if __name__ == '__main__':
     setup = infra.Setup(__file__)
 
     # Add clang, clang-lto and libcallcount instances
-    instance = LibcallCount('4.0.0')
-    setup.add_instance(infra.instances.Clang(instance.llvm))
-    setup.add_instance(infra.instances.Clang(instance.llvm, lto=True))
-    setup.add_instance(instance)
+    setup.add_instance(infra.instances.Clang(llvm))
+    setup.add_instance(infra.instances.Clang(llvm, lto=True))
+    setup.add_instance(LibcallCount())
 
     setup.add_target(HelloWorld())
     setup.add_target(infra.targets.SPEC2006(
